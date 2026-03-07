@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+python-socketio
+opencv-python
+mediapipe
+librosa
+soundfile
+openai
+textblob
+supabase
+python-dotenv
+google-generativeai
+numpy
+requests
