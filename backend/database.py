@@ -38,12 +38,12 @@ def get_supabase() -> Client:
 # ---------------- SESSION MANAGEMENT ---------------------
 # =========================================================
 
-def create_session(participant_name: str) -> Optional[str]:
+def create_session(participant_name: str = "Anonymous") -> Optional[str]:
     """
     Creates a new psychological wellness session.
 
     participant_name:
-        Student / Candidate / Employee
+        Student / Candidate / Employee (optional)
 
     Returns session_id
     """
@@ -51,10 +51,16 @@ def create_session(participant_name: str) -> Optional[str]:
     try:
         client = get_supabase()
 
-        response = client.table('sessions').insert({
-            "participant_name": participant_name,
-            "session_type": "wellness_assessment"
-        }).execute()
+        # Try minimal insert first (just let DB generate ID)
+        # Adjust columns based on your actual Supabase schema
+        insert_data = {}
+        
+        # Only add fields if your table has them
+        # Uncomment the columns that exist in your 'sessions' table:
+        # insert_data["participant_name"] = participant_name
+        # insert_data["session_type"] = "wellness_assessment"
+
+        response = client.table('sessions').insert(insert_data).execute()
 
         if response.data:
             session_id = response.data[0].get('id')

@@ -46,6 +46,16 @@ import analysis_helpers as analysis
 import llm_reporter as llm
 import database as db
 
+# Analytics module for research-grade metrics
+from analytics import (
+    compute_wellness_score,
+    compute_stress_map,
+    get_peak_stress_question,
+    compute_emotional_timeline,
+    detect_inconsistencies,
+    export_session_data,
+)
+
 # =========================================================
 # APP INIT
 # =========================================================
@@ -94,11 +104,23 @@ async def upload_recording(question_num: int, request: Request):
 
         frames = extract_frames(filename)
 
-        # ✅ NEW CONTRACT
+        # ✅ NEW CONTRACT - Alert-style metrics
         facial_metrics = analysis.analyze_facial_features(frames)
         vocal_metrics = analysis.analyze_vocal_features(filename)
         transcription = await analysis.transcribe_audio(filename)
         filler_count = analysis.analyze_text(transcription)
+
+        # ✅ NUMERIC METRICS for analytics
+        facial_numeric = analysis.extract_facial_metrics(frames)
+        vocal_numeric = analysis.extract_vocal_metrics(filename)
+        text_numeric = analysis.extract_text_metrics(transcription)
+
+        # Combined numeric metrics
+        numeric_metrics = {
+            **facial_numeric,
+            **vocal_numeric,
+            **text_numeric
+        }
 
         alerts = []
         alerts.extend(facial_metrics)
@@ -116,6 +138,7 @@ async def upload_recording(question_num: int, request: Request):
             "question": question_num,
             "transcription": transcription,
             "alerts": alerts,
+            "metrics": numeric_metrics,  # ✅ Research-grade numeric data
         }
 
     finally:
@@ -172,19 +195,78 @@ async def upload_and_assess(
 async def generate_report(payload: dict):
     analysis_data = payload.get("analysis_data", [])
 
+    # =========================================================
+    # RESEARCH ANALYTICS - Compute session-level insights
+    # =========================================================
+    
+    # Extract per-question numeric metrics
+    questions_data = []
+    for item in analysis_data:
+        q_metrics = item.get("metrics", {})
+        questions_data.append({
+            "question_num": item.get("question", 0),
+            "metrics": q_metrics,
+            "transcription": item.get("transcription", ""),
+            "alerts": item.get("alerts", []),
+        })
+
+    # Compute wellness index (0-100)
+    session_metrics = {}
+    for qd in questions_data:
+        for key, val in qd.get("metrics", {}).items():
+            if key not in session_metrics:
+                session_metrics[key] = []
+            if val is not None:
+                session_metrics[key].append(val)
+    
+    # Average metrics for wellness computation
+    avg_metrics = {k: (sum(v)/len(v) if v else None) for k, v in session_metrics.items()}
+    
+    wellness_result = compute_wellness_score(avg_metrics)
+
+    # Compute stress map per question (questions_data has correct structure)
+    stress_result = compute_stress_map(questions_data)
+
+    # Compute emotional trend from audio metrics over time
+    audio_segments = [qd.get("metrics", {}) for qd in questions_data]
+    emotional_timeline = compute_emotional_timeline(audio_segments)
+
+    # Detect behavioral inconsistencies
+    inconsistencies = detect_inconsistencies(questions_data)
+
+    # =========================================================
+    # LLM Report Generation
+    # =========================================================
     report_text = llm.generate_report(analysis_data)
 
-    session_id = db.create_session("Student")
-    report_id = None
+    # Generate a fallback UUID in case DB fails
+    fallback_id = str(uuid.uuid4())
+    report_id = fallback_id
 
-    if session_id:
-        saved = db.save_report(session_id, report_text, analysis_data)
-        if saved:
-            report_id = saved[0]["id"]
+    # Try to persist to Supabase (non-blocking)
+    try:
+        session_id = db.create_session()
+        if session_id:
+            saved = db.save_report(session_id, report_text, analysis_data)
+            if saved and saved[0].get("id"):
+                report_id = saved[0]["id"]
+    except Exception as e:
+        print(f"⚠️ DB save skipped: {e}")
 
     return {
         "report": report_text,
         "report_id": report_id,
+        "raw_data": analysis_data,
+        
+        # ✅ RESEARCH ANALYTICS
+        "analytics": {
+            "wellness": wellness_result,
+            "stress_map": stress_result.get("stress_map", []),
+            "peak_stress_question": stress_result.get("peak_stress_question"),
+            "stress_trend": stress_result.get("stress_trend"),
+            "emotional_timeline": emotional_timeline,
+            "inconsistencies": inconsistencies,
+        }
     }
 
 
