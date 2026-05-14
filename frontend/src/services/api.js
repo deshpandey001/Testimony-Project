@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Use environment variable if available, otherwise fall back to production URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://testimony-api.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://testimony-backend.onrender.com';
 
 console.log('API Base URL:', API_BASE_URL);
 

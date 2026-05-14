@@ -1,4 +1,5 @@
 services:
+  # Backend API Service
   - type: web
     name: testimony-backend
     runtime: python
@@ -16,28 +17,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
 
-  - type: web
-    name: testimony-frontend
-    runtime: node
-    rootDir: testimony_project/frontend
-    buildCommand: npm install && npm run build
-    startCommand: npm start
-    envVars:
-      - key: VITE_API_URL
-        value: https://testimony-backend-1.onrender.com
-      - key: NODE_ENV
-        value: production
-  - type: web
-    name: testimony-backend
-    runtime: python
-    pythonVersion: 3.11
-    rootDir: testimony_project/backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11
-
+  # Frontend Service
   - type: web
     name: testimony-frontend
     runtime: node
@@ -46,5 +26,7 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
-      - key: REACT_APP_API_URL
+      - key: VITE_API_URL
         value: https://testimony-backend.onrender.com
+      - key: NODE_ENV
+        value: production
