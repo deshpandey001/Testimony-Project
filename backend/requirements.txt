@@ -9,6 +9,7 @@ openai
 textblob
 supabase
 python-dotenv
+python-multipart
 google-generativeai
 numpy
 requests
