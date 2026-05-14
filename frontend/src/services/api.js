@@ -1,12 +1,16 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'https://testimony-project-1.onrender.com';
+// Use environment variable if available, otherwise fall back to production URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://testimony-api.onrender.com';
+
+console.log('API Base URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000,
 });
 
 export const uploadRecording = async (questionNum, blob) => {
