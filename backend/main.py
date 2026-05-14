@@ -127,6 +127,25 @@ def extract_frames(video_path: str):
 # =========================================================
 # HEALTH CHECK
 # =========================================================
+@app.get("/")
+async def root():
+    """Welcome endpoint with API documentation."""
+    return {
+        "service": "Student Psychological Wellness API",
+        "status": "🎉 Live on Render",
+        "version": "1.0.0",
+        "docs": "https://testimony-project-1.onrender.com/docs",
+        "endpoints": {
+            "health": "GET /health - Health check with module status",
+            "upload_recording": "POST /upload_recording/{question_num} - Upload and analyze a single recording",
+            "upload_and_assess": "POST /upload_and_assess - Upload video with optional audio",
+            "generate_report": "POST /generate_report - Generate comprehensive report from analysis data",
+            "recent": "GET /recent - Get recent reports",
+            "analysis": "GET /analysis/{report_id} - Get specific analysis by ID"
+        }
+    }
+
+
 @app.get("/health")
 async def health():
     """Minimal health check for Render deployment."""
