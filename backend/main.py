@@ -128,6 +128,7 @@ def extract_frames(video_path: str):
 # HEALTH CHECK
 # =========================================================
 @app.get("/")
+@app.head("/")
 async def root():
     """Welcome endpoint with API documentation."""
     return {
