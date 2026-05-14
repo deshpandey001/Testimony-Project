@@ -1,32 +1,22 @@
 services:
-  # Backend API Service
   - type: web
-    name: testimony-backend
+    name: testimony-project
     runtime: python
     pythonVersion: 3.11
-    rootDir: testimony_project/backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    rootDir: .
+    buildCommand: |
+      cd testimony_project/frontend && npm install && npm run build && cd ../.. && \
+      mkdir -p testimony_project/backend/dist && \
+      cp -r testimony_project/frontend/dist/* testimony_project/backend/dist/ && \
+      cd testimony_project/backend && \
+      pip install -r requirements.txt
+    startCommand: cd testimony_project/backend && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: SUPABASE_URL
-        sync: false
+        value: https://fjkxitbfkhgrdcsyepsw.supabase.co
       - key: SUPABASE_SERVICE_KEY
-        sync: false
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqa3hpdGJma2hncmRjc3llcHciLCJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNzYwMTI0MDgyLCJleHAiOjIwNzU3MDAwODJ9.HzMvnAIFrklbIq1rlMDwpvWCTNSTg4i5uNttptY1ILY
       - key: OPENAI_API_KEY
-        sync: false
+        value: sk-proj-REDACTED
       - key: GEMINI_API_KEY
-        sync: false
-
-  # Frontend Service
-  - type: web
-    name: testimony-frontend
-    runtime: node
-    nodeVersion: 18
-    rootDir: testimony_project/frontend
-    buildCommand: npm install && npm run build
-    startCommand: npm start
-    envVars:
-      - key: VITE_API_URL
-        value: https://testimony-backend.onrender.com
-      - key: NODE_ENV
-        value: production
+        value: AIzaSyCdnRMTP9fDLKfSXNNX-JFvfCmN8fz3U1w

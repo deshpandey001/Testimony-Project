@@ -34,7 +34,10 @@ sys.stderr = _StderrFilter(sys.stderr)
 import uuid
 import logging
 import shutil
+import os
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from importlib import util as importlib_util
@@ -380,6 +383,20 @@ async def health_asr():
         "python_whisper": importlib_util.find_spec("whisper") is not None,
         "ffmpeg_on_path": shutil.which("ffmpeg") is not None,
     }
+
+
+# =========================================================
+# DEV RUN
+# =========================================================
+# =========================================================
+# SERVE FRONTEND STATIC FILES (fallback for SPA)
+# =========================================================
+frontend_dist_path = Path(__file__).parent.parent / "frontend" / "dist"
+if frontend_dist_path.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist_path), html=True), name="static")
+    logger.info(f"✅ Serving frontend from {frontend_dist_path}")
+else:
+    logger.warning(f"⚠️ Frontend dist folder not found at {frontend_dist_path}. Only API endpoints available.")
 
 
 # =========================================================
