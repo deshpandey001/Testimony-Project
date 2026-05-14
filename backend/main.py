@@ -32,29 +32,59 @@ sys.stderr = _StderrFilter(sys.stderr)
 # IMPORTS
 # =========================================================
 import uuid
-import cv2
+import logging
 import shutil
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from importlib import util as importlib_util
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Load env FIRST
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
-import analysis_helpers as analysis
-import llm_reporter as llm
-import database as db
+# Lazy imports with error handling
+analysis = None
+llm = None
+db = None
+analytics_available = False
 
-# Analytics module for research-grade metrics
-from analytics import (
-    compute_wellness_score,
-    compute_stress_map,
-    get_peak_stress_question,
-    compute_emotional_timeline,
-    detect_inconsistencies,
-    export_session_data,
-)
+try:
+    import analysis_helpers as analysis
+    logger.info("✅ analysis_helpers loaded")
+except ImportError as e:
+    logger.error(f"⚠️ Failed to import analysis_helpers: {e}")
+
+try:
+    import llm_reporter as llm
+    logger.info("✅ llm_reporter loaded")
+except ImportError as e:
+    logger.error(f"⚠️ Failed to import llm_reporter: {e}")
+
+try:
+    import database as db
+    logger.info("✅ database loaded")
+except ImportError as e:
+    logger.error(f"⚠️ Failed to import database: {e}")
+
+try:
+    # Analytics module for research-grade metrics
+    from analytics import (
+        compute_wellness_score,
+        compute_stress_map,
+        get_peak_stress_question,
+        compute_emotional_timeline,
+        detect_inconsistencies,
+        export_session_data,
+    )
+    analytics_available = True
+    logger.info("✅ analytics module loaded")
+except ImportError as e:
+    logger.warning(f"⚠️ analytics module not available: {e}")
+    analytics_available = False
 
 # =========================================================
 # APP INIT
@@ -66,6 +96,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
+        "*",  # Allow all origins for Render deployment (update this later for security)
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -76,6 +107,12 @@ app.add_middleware(
 # UTIL
 # =========================================================
 def extract_frames(video_path: str):
+    try:
+        import cv2
+    except ImportError:
+        logger.error("OpenCV not available")
+        return []
+    
     frames = []
     cap = cv2.VideoCapture(video_path)
     while True:
@@ -85,6 +122,23 @@ def extract_frames(video_path: str):
         frames.append(frame)
     cap.release()
     return frames
+
+
+# =========================================================
+# HEALTH CHECK
+# =========================================================
+@app.get("/health")
+async def health():
+    """Minimal health check for Render deployment."""
+    return {
+        "status": "healthy",
+        "modules": {
+            "analysis": analysis is not None,
+            "llm_reporter": llm is not None,
+            "database": db is not None,
+            "analytics": analytics_available
+        }
+    }
 
 
 # =========================================================

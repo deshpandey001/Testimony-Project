@@ -7,31 +7,70 @@ import os
 import warnings
 import subprocess
 import shutil
-import cv2
-import numpy as np
-import mediapipe as mp
-import librosa
 import asyncio
 import tempfile
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Lazy imports for heavy dependencies
+cv2 = None
+np = None
+mp = None
+librosa = None
+genai = None
+mp_face_mesh = None
+
+def _init_cv2():
+    global cv2
+    if cv2 is None:
+        import cv2 as cv2_module
+        cv2 = cv2_module
+    return cv2
+
+def _init_numpy():
+    global np
+    if np is None:
+        import numpy as np_module
+        np = np_module
+    return np
+
+def _init_mediapipe():
+    global mp, mp_face_mesh
+    if mp is None:
+        import mediapipe as mp_module
+        mp = mp_module
+        try:
+            mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
+                static_image_mode=False,
+                max_num_faces=1
+            )
+            logger.info("✅ MediaPipe initialized")
+        except Exception as e:
+            logger.warning(f"⚠️ MediaPipe init failed: {e}")
+    return mp_face_mesh
+
+def _init_librosa():
+    global librosa
+    if librosa is None:
+        import librosa as librosa_module
+        librosa = librosa_module
+    return librosa
+
+def _init_gemini():
+    global genai
+    if genai is None:
+        try:
+            import google.generativeai as genai_module
+            genai = genai_module
+        except Exception:
+            logger.warning("⚠️ google.generativeai not available")
+    return genai
+
 from textblob import TextBlob
 
-# =========================================================
-# SAFE GEMINI IMPORT
-# =========================================================
-try:
-    import google.generativeai as genai
-except Exception:
-    genai = None
-
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
-# =========================================================
-# MEDIAPIPE FACE MESH INIT
-# =========================================================
-mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
-    static_image_mode=False,
-    max_num_faces=1
-)
+logger.info("✅ analysis_helpers module loaded")
 
 # =========================================================
 # ---------------- FACIAL WELLNESS ------------------------
@@ -39,9 +78,10 @@ mp_face_mesh = mp.solutions.face_mesh.FaceMesh(
 
 def calculate_ear(eye):
     """Eye Aspect Ratio (EAR)"""
-    A = np.linalg.norm(np.array(eye[1]) - np.array(eye[5]))
-    B = np.linalg.norm(np.array(eye[2]) - np.array(eye[4]))
-    C = np.linalg.norm(np.array(eye[0]) - np.array(eye[3]))
+    np_module = _init_numpy()
+    A = np_module.linalg.norm(np_module.array(eye[1]) - np_module.array(eye[5]))
+    B = np_module.linalg.norm(np_module.array(eye[2]) - np_module.array(eye[4]))
+    C = np_module.linalg.norm(np_module.array(eye[0]) - np_module.array(eye[3]))
     return (A + B) / (2.0 * C + 1e-6)
 
 
@@ -55,6 +95,19 @@ def extract_facial_metrics(frames, duration_sec=60):
             - gaze_stability: 0-1 stability score
             - face_detected_ratio: frames with face / total frames
     """
+    # Initialize on first use
+    cv2_module = _init_cv2()
+    np_module = _init_numpy()
+    mesh = _init_mediapipe()
+    
+    if mesh is None:
+        logger.warning("MediaPipe not available, returning empty metrics")
+        return {
+            "blink_rate": None,
+            "gaze_stability": None,
+            "face_detected_ratio": 0.0
+        }
+    
     if not frames or len(frames) < 2:
         return {
             "blink_rate": None,
@@ -70,8 +123,8 @@ def extract_facial_metrics(frames, duration_sec=60):
 
     for frame in frames:
         try:
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = mp_face_mesh.process(rgb)
+            rgb = cv2_module.cvtColor(frame, cv2_module.COLOR_BGR2RGB)
+            results = mesh.process(rgb)
 
             if results.multi_face_landmarks:
                 face_detected += 1
@@ -120,6 +173,9 @@ def analyze_facial_features(frames):
     RETURNS (ALWAYS):
         List[Dict] → wellness indicators
     """
+    # Initialize on first use
+    cv2_module = _init_cv2()
+    mesh = _init_mediapipe()
 
     metrics = []
 
@@ -130,14 +186,22 @@ def analyze_facial_features(frames):
             "details": "Insufficient video frames for facial analysis"
         }]
 
+    if mesh is None:
+        logger.warning("MediaPipe not available for facial analysis")
+        return [{
+            "type": "Facial Analysis Unavailable",
+            "value": None,
+            "details": "MediaPipe not available in this environment"
+        }]
+
     blink_count = 0
     eye_closed = False
     EAR_THRESHOLD = 0.22
 
     for frame in frames:
         try:
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = mp_face_mesh.process(rgb)
+            rgb = cv2_module.cvtColor(frame, cv2_module.COLOR_BGR2RGB)
+            results = mesh.process(rgb)
 
             if results.multi_face_landmarks:
                 for face in results.multi_face_landmarks:
@@ -216,6 +280,19 @@ def extract_vocal_metrics(audio_path):
             - duration_sec: audio duration in seconds
             - pause_duration: estimated pause time in seconds
     """
+    # Initialize on first use
+    librosa_module = _init_librosa()
+    np_module = _init_numpy()
+    
+    if librosa_module is None or np_module is None:
+        return {
+            "pitch_variance": None,
+            "energy_variance": None,
+            "duration_sec": None,
+            "pause_duration": None,
+            "error": "librosa not available"
+        }
+    
     if not audio_path or not os.path.exists(audio_path):
         return {
             "pitch_variance": None,
@@ -227,22 +304,22 @@ def extract_vocal_metrics(audio_path):
     safe_path = _ensure_wav(audio_path)
 
     try:
-        y, sr = librosa.load(safe_path, sr=16000)
+        y, sr = librosa_module.load(safe_path, sr=16000)
         duration = len(y) / sr
 
         # Energy analysis
-        rms = librosa.feature.rms(y=y)
-        energy_var = float(np.var(rms))
+        rms = librosa_module.feature.rms(y=y)
+        energy_var = float(np_module.var(rms))
 
         # Pitch analysis
-        pitches, mags = librosa.piptrack(y=y, sr=sr)
-        pitch_vals = pitches[mags > np.median(mags)]
-        pitch_var = float(np.var(pitch_vals)) if len(pitch_vals) else 0.0
+        pitches, mags = librosa_module.piptrack(y=y, sr=sr)
+        pitch_vals = pitches[mags > np_module.median(mags)]
+        pitch_var = float(np_module.var(pitch_vals)) if len(pitch_vals) else 0.0
 
         # Pause detection (frames with very low energy)
         rms_flat = rms.flatten()
-        silence_threshold = np.percentile(rms_flat, 20)  # Bottom 20% as pause
-        pause_frames = np.sum(rms_flat < silence_threshold)
+        silence_threshold = np_module.percentile(rms_flat, 20)  # Bottom 20% as pause
+        pause_frames = np_module.sum(rms_flat < silence_threshold)
         hop_length = 512  # librosa default
         pause_duration = (pause_frames * hop_length) / sr
 
@@ -277,6 +354,9 @@ def analyze_vocal_features(audio_path):
     RETURNS (ALWAYS):
         List[Dict]
     """
+    # Initialize on first use
+    librosa_module = _init_librosa()
+    np_module = _init_numpy()
 
     metrics = []
 
@@ -287,17 +367,24 @@ def analyze_vocal_features(audio_path):
             "details": "No valid audio input for vocal analysis"
         }]
 
+    if librosa_module is None or np_module is None:
+        return [{
+            "type": "Audio Analysis Unavailable",
+            "value": None,
+            "details": "librosa not available in this environment"
+        }]
+
     safe_path = _ensure_wav(audio_path)
 
     try:
-        y, sr = librosa.load(safe_path, sr=16000)
+        y, sr = librosa_module.load(safe_path, sr=16000)
 
-        rms = librosa.feature.rms(y=y)
-        energy_var = float(np.var(rms))
+        rms = librosa_module.feature.rms(y=y)
+        energy_var = float(np_module.var(rms))
 
-        pitches, mags = librosa.piptrack(y=y, sr=sr)
-        pitch_vals = pitches[mags > np.median(mags)]
-        pitch_var = float(np.var(pitch_vals)) if len(pitch_vals) else 0.0
+        pitches, mags = librosa_module.piptrack(y=y, sr=sr)
+        pitch_vals = pitches[mags > np_module.median(mags)]
+        pitch_var = float(np_module.var(pitch_vals)) if len(pitch_vals) else 0.0
 
         if pitch_var > 60:
             metrics.append({
