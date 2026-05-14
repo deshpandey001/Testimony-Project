@@ -1,17 +1,22 @@
 services:
-  # Backend API
   - type: web
-    name: testimony-api
+    name: testimony-backend
     runtime: python
     pythonVersion: 3.11
     rootDir: testimony_project/backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
 
-  # Frontend App
   - type: web
     name: testimony-frontend
     runtime: node
+    nodeVersion: 18
     rootDir: testimony_project/frontend
     buildCommand: npm install && npm run build
     startCommand: npm start
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://testimony-backend.onrender.com
