@@ -96,7 +96,10 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
-        "*",  # Allow all origins for Render deployment (update this later for security)
+        "http://localhost:5000",
+        "https://testimony-frontend.onrender.com",
+        "https://*.onrender.com",
+        "*",  # Allow all origins (update this to specific domains for production)
     ],
     allow_credentials=True,
     allow_methods=["*"],
