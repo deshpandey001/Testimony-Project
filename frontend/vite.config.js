@@ -7,15 +7,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'terser',
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'ui-vendor': ['@mui/material', '@mui/icons-material'],
-        },
-      },
-    },
+    minify: 'esbuild',
   },
   server: {
     port: 5173,
